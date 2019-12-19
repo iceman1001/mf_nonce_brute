@@ -80,119 +80,119 @@ uint16_t parity_from_err(uint32_t data, uint16_t par_err) {
 
 uint16_t xored_bits(uint16_t nt_par, uint32_t nt_enc, uint16_t ar_par, uint32_t ar_enc, uint16_t at_par, uint32_t at_enc) {
 	uint16_t xored = 0;
-	
+
 	uint8_t par;
 	//1st (1st nt)
 	par = (nt_par >> 12 ) & 1;
 	xored |=  par ^ ((nt_enc >> 16) & 1);
 	xored <<= 1;
-	
+
 	//2nd (2nd nt)
 	par = (nt_par >> 8) & 1;
 	xored |= par ^ ((nt_enc >> 8) & 1);
 	xored <<= 1;
-	
+
 	//3rd (3rd nt)
 	par = (nt_par >> 4) & 1;
 	xored |= par ^ (nt_enc & 1);
 	xored <<= 1;
-	
+
 	//4th (1st ar)
 	par = (ar_par >> 12 ) & 1;
 	xored |= par ^ ((ar_enc >> 16) & 1);
 	xored <<= 1;
-	
+
 	//5th (2nd ar)
 	par = (ar_par >> 8) & 1;
 	xored |= par ^ ((ar_enc >> 8) & 1);
 	xored <<= 1;
-	
+
 	//6th (3rd ar)
 	par = (ar_par >> 4 ) & 1;
 	xored |= par ^ (ar_enc & 1);
 	xored <<= 1;
-	
+
 	//7th (4th ar)
 	par = ar_par & 1;
 	xored |= par ^ ((at_enc >> 24 ) & 1);
 	xored <<= 1;
-	
+
 	//8th (1st at)
 	par = (at_par >> 12) & 1;
 	xored |= par ^ ((at_enc >> 16) & 1);
-	xored <<= 1;
-	
+        xored <<= 1;
+
 	//9th (2nd at)
 	par = (at_par >> 8) & 1;
 	xored |= par ^ ((at_enc >> 8) & 1);
 	xored <<= 1;
-	
+
 	//10th (3rd at)
 	par = (at_par >> 4 ) & 1;
 	xored |= par ^ (at_enc & 1);
-	
+
 	return xored;
 }
 
 bool candidate_nonce(uint32_t xored, uint32_t nt, bool ev1) {
 	uint8_t byte, check;
-	
+
 	if (!ev1) {
 		//1st (1st nt)
 		byte = (nt >> 24) & 0xFF;
-		check = odd_parity(byte) ^ ((nt > 16) & 1) ^ ((xored >> 9) & 1);
+		check = odd_parity(byte) ^ ((nt >> 16) & 1) ^ ((xored >> 9) & 1);
 		if(check) return false;
-			
+
 		//2nd (2nd nt)
 		byte = (nt >> 16) & 0xFF;
 		check = odd_parity(byte) ^ ((nt >> 8) & 1) ^ ((xored >> 8 ) & 1);
 		if(check) return false;
 	}
-		
+
 	//3rd (3rd nt)
 	byte = (nt >> 8) & 0xFF;
 	check = odd_parity(byte) ^ (nt & 1) ^ ((xored >> 7) & 1);
 	if (check) return false;
-	
+
 	uint32_t ar = prng_successor(nt, 64);
-	
+
 	//4th (1st ar)
 	byte = (ar >> 24) & 0xFF;
 	check = odd_parity(byte) ^ ((ar >> 16) & 1) ^ ((xored >> 6) & 1);
 	if (check) return false;
-	
+
 	//5th (2nd ar)
 	byte = (ar >> 16) & 0x0FF;
 	check = odd_parity(byte) ^ ((ar >> 8) & 1) ^ ((xored >> 5) & 1);
 	if (check) return false;
-	
+
 	//6th (3rd ar)
 	byte = (ar >> 8) & 0xFF;
 	check = odd_parity(byte) ^ (ar & 1) ^ ((xored >> 4) & 1);
 	if (check) return false;
-		
-	uint32_t at = prng_successor(nt, 96);
-		
+
+        uint32_t at = prng_successor(nt, 96);
+
 	//7th (4th ar)
 	byte = ar & 0xFF;
 	check = odd_parity(byte) ^ ((at >> 24) & 1) ^ ((xored >> 3) & 1);
 	if (check) return false;
-	
+
 	//8th (1st at)
 	byte = (at >> 24) & 0xFF;
 	check = odd_parity(byte) ^ ((at >> 16) & 1) ^ ((xored >> 2) & 1);
 	if (check) return false;
-	
+
 	//9th (2nd at)
 	byte = (at >> 16) & 0xFF;
 	check = odd_parity(byte) ^ ((at >> 8) & 1) ^ ((xored >> 1) & 1) ;
 	if (check) return false;
-	
+
 	//10th (3rd at)
 	byte = (at >> 8) & 0xFF;
 	check = odd_parity(byte) ^ (at & 1) ^ (xored & 1);
 	if (check) return false;
-		
+
 	return true;
 }
 
@@ -215,7 +215,7 @@ bool checkCRC(uint32_t decrypted){
 }
 
 void* brute_thread(void *arguments) {
-	
+
 	//int shift = (int)arg;
 	struct thread_args *args = (struct thread_args*) arguments;
 
@@ -225,23 +225,23 @@ void* brute_thread(void *arguments) {
 	uint32_t ks3;     // keystream used to encrypt tag response
 	uint32_t ks4;     // keystream used to encrypt next command
 	uint32_t nt;      // current tag nonce
-	
+
 	uint32_t p64 = 0;
 	uint32_t count;
 	int found = 0;
 	// TC == 4  (
 	// threads calls 0 ev1 == false
-	// threads calls 0,1,2  ev1 == true  	
+	// threads calls 0,1,2  ev1 == true
 	for (count = args->idx; count < 0xFFFF; count += thread_count-1) {
-	
+
 		found = global_found;
 		if ( found ) break;
-		
+
 		nt = count << 16 | prng_successor(count, 16);
-		
+
 		if ( !candidate_nonce( args->xored, nt, args->ev1) )
 			continue;
-		
+
 		p64 = prng_successor(nt, 64);
 		ks2 = ar_enc ^ p64;
 		ks3 = at_enc ^ prng_successor(p64, 32);
@@ -249,13 +249,13 @@ void* brute_thread(void *arguments) {
 		ks4 = crypto1_word(revstate, 0, 0);
 
 		if (ks4 != 0) {
-			
+
 			// lock this section to avoid interlacing prints from different threats
 			pthread_mutex_lock(&print_lock);
 			if ( args->ev1 )
 				printf("\n**** Possible key candidate ****\n");
 
-#if 0			
+#if 0
 			printf("thread #%d idx %d %s\n", args->thread, args->idx, (args->ev1)?"(Ev1)":"");
 			printf("current nt(%08x)  ar_enc(%08x)  at_enc(%08x)\n", nt, ar_enc, at_enc);
 			printf("ks2:%08x\n", ks2);
@@ -282,15 +282,15 @@ void* brute_thread(void *arguments) {
 					printf("<-- Valid cmd\n");
 				}
 			}
-			
+
 			lfsr_rollback_word(revstate, 0, 0);
 			lfsr_rollback_word(revstate, 0, 0);
 			lfsr_rollback_word(revstate, 0, 0);
 			lfsr_rollback_word(revstate, nr_enc, 1);
 			lfsr_rollback_word(revstate, uid ^ nt, 0);
 			crypto1_get_lfsr(revstate, &key);
-			free(revstate);	
-			
+			free(revstate);
+
 			if ( args->ev1 ) {
 				printf("\nKey candidate: [%012" PRIx64 "]\n\n", key);
 				__sync_fetch_and_add(&global_found_candidate, 1);
@@ -300,7 +300,7 @@ void* brute_thread(void *arguments) {
 			}
 			//release lock
 			pthread_mutex_unlock(&print_lock);
-		}		
+		}
 	}
 	return NULL;
 }
@@ -311,7 +311,7 @@ int usage(){
 	printf("                     nt = 8c42e64e\n");
 	printf("             nt_par_err = 1011\n\n");
 	printf("\n expected outcome:\n");
-	printf("  KEY 0xFFFFFFFFFFFF ==   fa247164 fb47c594 0000 71909d28 0c254817 1000 0dc7cfbd 1110\n");	
+	printf("  KEY 0xFFFFFFFFFFFF ==   fa247164 fb47c594 0000 71909d28 0c254817 1000 0dc7cfbd 1110\n");
 	return 1;
 }
 
@@ -331,7 +331,7 @@ int main (int argc, char *argv[]) {
 
 	if(argc > 9)
 		sscanf(argv[9],"%x",&cmd_enc);
-	
+
 	printf("-------------------------------------------------\n");
 	printf("uid:\t\t%08x\n",uid);
 	printf("nt encrypted:\t%08x\n",nt_enc);
@@ -344,28 +344,28 @@ int main (int argc, char *argv[]) {
 
 	if(argc > 9)
 		printf("next cmd enc:\t%08x\n\n",cmd_enc);
-	
-	clock_t t1 = clock();
+
+        clock_t t1 = clock();
 	uint16_t nt_par = parity_from_err(nt_enc, nt_par_err);
 	uint16_t ar_par = parity_from_err(ar_enc, ar_par_err);
 	uint16_t at_par = parity_from_err(at_enc, at_par_err);
 
 	//calc (parity XOR corresponding nonce bit encoded with the same keystream bit)
 	uint16_t xored = xored_bits(nt_par, nt_enc, ar_par, ar_enc, at_par, at_enc);
-	
+
 #ifndef __WIN32
 	thread_count = sysconf(_SC_NPROCESSORS_CONF);
 	if ( thread_count < 2)
 		thread_count = 2;
 #endif  /* _WIN32 */
-	
+
 	printf("\nBruteforce using %d threads to find encrypted tagnonce last bytes\n", thread_count);
-		
+
 	pthread_t threads[thread_count];
 
 	// create a mutex to avoid interlacing print commands from our different threads
 	pthread_mutex_init(&print_lock, NULL);
-	
+
 	// one thread T0 for none EV1.
 	struct thread_args *a = malloc(sizeof(struct thread_args));
 	a->xored = xored;
@@ -373,7 +373,7 @@ int main (int argc, char *argv[]) {
 	a->idx = 0;
 	a->ev1 = false;
 	pthread_create(&threads[0], NULL, brute_thread, (void*)a);
-	
+
 	// the rest of available threads to EV1 scenario
 	for (int i = 0; i < thread_count-1; ++i) {
 		struct thread_args *b = malloc(sizeof(struct thread_args));
@@ -383,19 +383,19 @@ int main (int argc, char *argv[]) {
 		b->ev1 = true;
 		pthread_create(&threads[i+1], NULL, brute_thread, (void*)b);
 	}
-	
+
 	// wait for threads to terminate:
 	for (int i = 0; i < thread_count; ++i)
 		pthread_join(threads[i], NULL);
-	
+
 	if (!global_found && !global_found_candidate) {
 		printf("\nFailed to find a key\n\n");
 	}
-	
+
 	t1 = clock() - t1;
 	if ( t1 > 0 )
 		printf("Execution time: %.0f ticks\n",  (float)t1);
-	
+
 	// clean up mutex
 	pthread_mutex_destroy(&print_lock);
 	return 0;
